@@ -66,16 +66,23 @@ export async function processRequest(request, reply) {
             return handleRedirect(request, reply);
         }
 
+        const contentType = response.headers.get('content-type') || '';
+        const bufferSize = parseInt(response.headers.get('content-length'), 10) || 0;
+        
         copyHdrs(response, reply);
         reply.header('content-encoding', 'identity');
-        request.params.originType = response.headers.get('content-type') || '';
+        reply.header('x-original-size', bufferSize);
 
+        const imageStream = response.body;
+        
         if (checkCompression(request)) {
-            // Pass the response body stream to the compressImg function
-            return applyCompression(request, reply, response.body);
+            // Process image stream with compression
+            applyCompression(request, reply, imageStream);
         } else {
-            // Pass the response body stream to the bypass function
-            return performBypass(request, reply, response.body);
+            // Bypass compression and stream image data
+            reply.header('content-length', bufferSize);
+            reply.header('x-proxy-bypass', 1);
+            imageStream.pipe(reply.raw);
         }
     } catch (err) {
         return handleRedirect(request, reply);
